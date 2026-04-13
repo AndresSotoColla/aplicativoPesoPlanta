@@ -11,6 +11,8 @@ composeBom = "2026.02.01"
 navigationCompose = "2.8.5"
 room = "2.8.4"
 ksp = "2.2.10-2.0.2" # Should match kotlin version
+retrofit = "2.11.0"
+moshi = "1.15.0"
 
 
 [libraries]
@@ -33,6 +35,9 @@ androidx-room-runtime = { group = "androidx.room", name = "room-runtime", versio
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+converter-moshi = { group = "com.squareup.retrofit2", name = "converter-moshi", version.ref = "retrofit" }
+moshi-kotlin = { group = "com.squareup.moshi", name = "moshi-kotlin", version.ref = "moshi" }
 
 
 [plugins]

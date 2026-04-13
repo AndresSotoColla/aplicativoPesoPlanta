@@ -34,8 +34,18 @@ fun SamplingFormScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     
     // States for dropdowns
+    var blockMenuExpanded by remember { mutableStateOf(false) }
     var rootMenuExpanded by remember { mutableStateOf(false) }
     var findingsMenuExpanded by remember { mutableStateOf(false) }
+
+    val availableBlocks by viewModel.availableBlocks.collectAsState()
+    val filteredBlocks = remember(viewModel.block, availableBlocks) {
+        if (viewModel.block.isEmpty()) {
+            availableBlocks
+        } else {
+            availableBlocks.filter { it.contains(viewModel.block, ignoreCase = true) }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -68,25 +78,53 @@ fun SamplingFormScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Text style for all labels/inputs
             val blackTextStyle = TextStyle(color = Color.Black, fontSize = 16.sp)
 
-            // Block
-            OutlinedTextField(
-                value = viewModel.block,
-                onValueChange = { viewModel.block = it },
-                label = { Text("Bloque a muestrear", color = Color.Black) },
-                textStyle = blackTextStyle,
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.Black,
-                    unfocusedTextColor = Color.Black,
-                    focusedBorderColor = Color.Black,
-                    unfocusedBorderColor = Color.Black,
-                    focusedLabelColor = Color.Black,
-                    unfocusedLabelColor = Color.Black
+            // Block (Filterable Dropdown)
+            Text("Bloque a muestrear", fontWeight = FontWeight.Bold, color = Color.Black)
+            ExposedDropdownMenuBox(
+                expanded = blockMenuExpanded,
+                onExpandedChange = { blockMenuExpanded = it }, // Respect the click on trailing icon
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = viewModel.block,
+                    onValueChange = { 
+                        viewModel.block = it
+                        // Don't auto-expand while typing if requested to only show on arrow click, 
+                        // but usually it's better to show it. The user said: 
+                        // "uno cokloque un indiico del bloque le de en la flecha y muestre las oicnicdencias"
+                    },
+                    label = { Text("Escriba o seleccione bloque", color = Color.Black) },
+                    textStyle = blackTextStyle,
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = blockMenuExpanded) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Black,
+                        unfocusedBorderColor = Color.Black
+                    )
                 )
-            )
+
+                // Show dropdown only if there are matches
+                if (filteredBlocks.isNotEmpty()) {
+                    ExposedDropdownMenu(
+                        expanded = blockMenuExpanded,
+                        onDismissRequest = { blockMenuExpanded = false },
+                        modifier = Modifier.background(DarkBeige)
+                    ) {
+                        filteredBlocks.forEach { selectionOption ->
+                            DropdownMenuItem(
+                                text = { Text(selectionOption, color = Color.Black) },
+                                onClick = {
+                                    viewModel.block = selectionOption
+                                    blockMenuExpanded = false
+                                },
+                                modifier = Modifier.background(DarkBeige)
+                            )
+                        }
+                    }
+                }
+            }
 
             // Date Picker
             val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())

@@ -18,6 +18,11 @@ data class SamplingEntity(
     val observations: String
 )
 
+@Entity(tableName = "cached_blocks")
+data class CachedBlockEntity(
+    @PrimaryKey val bloque: String
+)
+
 @Dao
 interface SamplingDao {
     @Query("SELECT * FROM samplings ORDER BY date DESC")
@@ -31,9 +36,19 @@ interface SamplingDao {
 
     @Query("DELETE FROM samplings")
     suspend fun deleteAll()
+
+    // Cache methods
+    @Query("SELECT bloque FROM cached_blocks")
+    fun getCachedBlocks(): Flow<List<String>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBlocks(blocks: List<CachedBlockEntity>)
+
+    @Query("DELETE FROM cached_blocks")
+    suspend fun clearCachedBlocks()
 }
 
-@Database(entities = [SamplingEntity::class], version = 1)
+@Database(entities = [SamplingEntity::class, CachedBlockEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun samplingDao(): SamplingDao
 
@@ -47,7 +62,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "sampling_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration() // Simple for this use case
+                .build()
                 INSTANCE = instance
                 instance
             }

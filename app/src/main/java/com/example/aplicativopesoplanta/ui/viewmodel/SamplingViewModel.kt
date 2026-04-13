@@ -1,28 +1,22 @@
 package com.example.aplicativopesoplanta.ui.viewmodel
 
-import android.app.Application
 import android.content.Context
-import android.content.Intent
 import androidx.compose.runtime.*
-import androidx.core.content.FileProvider
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aplicativopesoplanta.data.AppDatabase
+import com.example.aplicativopesoplanta.data.CachedBlockEntity
 import com.example.aplicativopesoplanta.data.SamplingEntity
+import com.example.aplicativopesoplanta.data.network.NetworkModule
+import com.example.aplicativopesoplanta.utils.CsvExporter
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.*
 
-class SamplingViewModel(application: Application) : AndroidViewModel(application) {
-    private val db = AppDatabase.getDatabase(application)
-    private val dao = db.samplingDao()
-
-    val samplings: StateFlow<List<SamplingEntity>> = dao.getAllSamplings()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+class SamplingViewModel(context: Context) : ViewModel() {
+    private val dao = AppDatabase.getDatabase(context).samplingDao()
 
     // Form State
     var block by mutableStateOf("")
@@ -31,26 +25,53 @@ class SamplingViewModel(application: Application) : AndroidViewModel(application
     var rootSystem by mutableStateOf("Normal")
     var fusarium by mutableStateOf(false)
     var meristem by mutableStateOf(false)
-    var selectedFindings by mutableStateOf(setOf("Ninguna"))
     var observations by mutableStateOf("")
-
+    
+    val selectedFindings = mutableStateListOf<String>("Ninguna")
     val findingOptions = listOf("Sinfilido", "Caracol", "Babosa", "Hormiga", "Cochinilla", "Ninguna")
 
-    fun onFindingToggle(finding: String) {
-        val current = selectedFindings.toMutableSet()
-        if (finding == "Ninguna") {
-            current.clear()
-            current.add("Ninguna")
-        } else {
-            if (current.contains(finding)) {
-                current.remove(finding)
-                if (current.isEmpty()) current.add("Ninguna")
-            } else {
-                current.remove("Ninguna")
-                current.add(finding)
+    // Data from Database
+    val samplings: StateFlow<List<SamplingEntity>> = dao.getAllSamplings()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Cached Blocks for Dropdown
+    val availableBlocks: StateFlow<List<String>> = dao.getCachedBlocks()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    init {
+        // Automatically sync blocks on start
+        syncBlocks()
+    }
+
+    fun syncBlocks() {
+        viewModelScope.launch {
+            try {
+                val remoteCronograma = NetworkModule.apiService.getCronograma()
+                if (remoteCronograma.isNotEmpty()) {
+                    val entities = remoteCronograma.map { CachedBlockEntity(it.bloque) }
+                    dao.clearCachedBlocks()
+                    dao.insertBlocks(entities)
+                }
+            } catch (e: Exception) {
+                // If network fails, we quietly keep using the cached blocks from DAO
+                e.printStackTrace()
             }
         }
-        selectedFindings = current
+    }
+
+    fun onFindingToggle(finding: String) {
+        if (finding == "Ninguna") {
+            selectedFindings.clear()
+            selectedFindings.add("Ninguna")
+        } else {
+            selectedFindings.remove("Ninguna")
+            if (selectedFindings.contains(finding)) {
+                selectedFindings.remove(finding)
+                if (selectedFindings.isEmpty()) selectedFindings.add("Ninguna")
+            } else {
+                selectedFindings.add(finding)
+            }
+        }
     }
 
     fun saveSampling(onSuccess: () -> Unit) {
@@ -91,36 +112,15 @@ class SamplingViewModel(application: Application) : AndroidViewModel(application
         rootSystem = "Normal"
         fusarium = false
         meristem = false
-        selectedFindings = setOf("Ninguna")
         observations = ""
+        selectedFindings.clear()
+        selectedFindings.add("Ninguna")
     }
 
-    fun exportToCSV(context: Context) {
-        val data = samplings.value
-        if (data.isEmpty()) return
-
-        val fileName = "muestreos_peso_${System.currentTimeMillis()}.csv"
-        val file = File(context.cacheDir, fileName)
-        
-        try {
-            file.writer().use { writer ->
-                writer.write("ID,Bloque,Fecha,Peso (g),Sistema Radicular,Fusarium,Meristemo,Hallazgos,Observaciones\n")
-                val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-                data.forEach { s ->
-                    writer.write("${s.id},${s.block},${sdf.format(Date(s.date))},${s.weight},${s.rootSystem},${s.fusarium},${s.meristem},\"${s.findings}\",\"${s.observations}\"\n")
-                }
-            }
-
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/csv"
-                putExtra(Intent.EXTRA_SUBJECT, "Exportación de Muestreos")
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(Intent.createChooser(intent, "Descargar Información"))
-        } catch (e: Exception) {
-            e.printStackTrace()
+    fun exportToCsv(context: Context) {
+        viewModelScope.launch {
+            val currentSamplings = samplings.value
+            CsvExporter.exportAndShare(context, currentSamplings)
         }
     }
 }
