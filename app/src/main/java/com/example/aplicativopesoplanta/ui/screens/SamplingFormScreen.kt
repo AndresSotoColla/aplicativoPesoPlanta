@@ -4,11 +4,13 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,6 +52,9 @@ fun SamplingFormScreen(
         }
     }
 
+    // Stats
+    val (count, avg) = viewModel.todayBlockStats
+
     // Handle Hardware Back Button
     BackHandler {
         onBack()
@@ -86,6 +91,51 @@ fun SamplingFormScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Stats Header
+            if (viewModel.block.isNotEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = DarkBeige),
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                "Muestreos hoy (Este bloque)",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.Black.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                count.toString(),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                "Peso Promedio",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.Black.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                "${String.format(Locale.getDefault(), "%.2f", avg)} g",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                        }
+                    }
+                }
+            }
+
             val blackTextStyle = TextStyle(color = Color.Black, fontSize = 16.sp)
 
             // Block (Filterable Dropdown)
@@ -130,7 +180,7 @@ fun SamplingFormScreen(
                 }
             }
 
-            // Date Picker (Date is usually fresh, but let's keep it centered)
+            // Date Picker
             val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
             OutlinedTextField(
                 value = sdf.format(Date(viewModel.samplingDate)),
@@ -172,21 +222,31 @@ fun SamplingFormScreen(
                 }
             }
 
-            // Weight
+            // Weight with validation
+            val weightVal = viewModel.weightInput.toDoubleOrNull() ?: 0.0
+            val isWeightError = weightVal > 4000
+            
             OutlinedTextField(
                 value = viewModel.weightInput,
                 onValueChange = { viewModel.updateWeight(it) },
-                label = { Text("Peso (g)", color = Color.Black) },
+                label = { Text("Peso (g)", color = if (isWeightError) Color.Red else Color.Black) },
                 textStyle = blackTextStyle,
+                isError = isWeightError,
+                supportingText = {
+                    if (isWeightError) {
+                        Text("El peso no puede superar los 4000g", color = Color.Red)
+                    }
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color.Black,
-                    unfocusedBorderColor = Color.Black
+                    focusedBorderColor = if (isWeightError) Color.Red else Color.Black,
+                    unfocusedBorderColor = if (isWeightError) Color.Red else Color.Black,
+                    errorBorderColor = Color.Red
                 )
             )
 
-            // Root System (Dropdown Single Selection)
+            // Root System
             Text("Sistema Radicular", fontWeight = FontWeight.Bold, color = Color.Black)
             ExposedDropdownMenuBox(
                 expanded = rootMenuExpanded,
@@ -223,7 +283,7 @@ fun SamplingFormScreen(
                 }
             }
 
-            // Checkboxes (Fusarium/Meristem)
+            // Checkboxes
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(
@@ -243,7 +303,7 @@ fun SamplingFormScreen(
                 }
             }
 
-            // Findings (Dropdown Multiple Selection)
+            // Findings
             Text("Hallazgos", fontWeight = FontWeight.Bold, color = Color.Black)
             ExposedDropdownMenuBox(
                 expanded = findingsMenuExpanded,
@@ -309,18 +369,25 @@ fun SamplingFormScreen(
             // Save Button
             Button(
                 onClick = {
-                    viewModel.saveSampling {
-                        // Instead of moving back, stay and show success
+                    viewModel.saveSampling { errorMsg ->
                         scope.launch {
-                            snackbarHostState.showSnackbar("Muestreo guardado correctamente")
+                            if (errorMsg != null) {
+                                snackbarHostState.showSnackbar(errorMsg)
+                            } else {
+                                snackbarHostState.showSnackbar("Muestreo guardado correctamente")
+                            }
                         }
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
+                enabled = !isWeightError,
                 shape = MaterialTheme.shapes.medium,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Black,
+                    disabledContainerColor = Color.Gray
+                )
             ) {
                 Text("GUARDAR", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }

@@ -56,6 +56,28 @@ class SamplingViewModel(context: Context) : ViewModel() {
     val availableBlocks: StateFlow<List<String>> = dao.getCachedBlocks()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Statistics (Derived from samplings, block, and date)
+    val todayBlockStats by derivedStateOf {
+        val currentBlock = block
+        val currentDate = samplingDate
+        if (currentBlock.isEmpty()) return@derivedStateOf Pair(0, 0.0)
+
+        val calendar = Calendar.getInstance().apply { timeInMillis = currentDate }
+        val day = calendar.get(Calendar.DAY_OF_YEAR)
+        val year = calendar.get(Calendar.YEAR)
+
+        val filtered = samplings.value.filter {
+            val sCalendar = Calendar.getInstance().apply { timeInMillis = it.date }
+            it.block == currentBlock && 
+            sCalendar.get(Calendar.DAY_OF_YEAR) == day &&
+            sCalendar.get(Calendar.YEAR) == year
+        }
+
+        val count = filtered.size
+        val avg = if (count > 0) filtered.map { it.weight }.average() else 0.0
+        Pair(count, avg)
+    }
+
     init {
         // Load findings from prefs
         val savedFindings = prefs.getStringSet("findings", setOf("Ninguna")) ?: setOf("Ninguna")
@@ -158,9 +180,20 @@ class SamplingViewModel(context: Context) : ViewModel() {
         saveFormToPrefs()
     }
 
-    fun saveSampling(onSuccess: () -> Unit) {
+    fun saveSampling(onSuccess: (String?) -> Unit) {
+        val weight = weightInput.toDoubleOrNull()
+        
+        if (weight == null || weight <= 0) {
+            onSuccess("Por favor ingrese un peso válido")
+            return
+        }
+        
+        if (weight > 4000) {
+            onSuccess("El peso no puede superar los 4000g")
+            return
+        }
+
         viewModelScope.launch {
-            val weight = weightInput.toDoubleOrNull() ?: 0.0
             val sampling = SamplingEntity(
                 block = block,
                 date = samplingDate,
@@ -173,7 +206,7 @@ class SamplingViewModel(context: Context) : ViewModel() {
             )
             dao.insertSampling(sampling)
             clearForm()
-            onSuccess()
+            onSuccess(null)
         }
     }
 
@@ -190,7 +223,7 @@ class SamplingViewModel(context: Context) : ViewModel() {
     }
 
     private fun clearForm() {
-        block = ""
+        // User wants to KEEP the block but clear everything else
         weightInput = ""
         samplingDate = System.currentTimeMillis()
         rootSystem = "Normal"
