@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.example.aplicativopesoplanta.ui.viewmodel.SamplingViewModel
 import com.example.aplicativopesoplanta.ui.theme.LightBeige
 import com.example.aplicativopesoplanta.ui.theme.DarkBeige
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -32,6 +33,7 @@ fun SamplingFormScreen(
     onBack: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     var showDatePicker by remember { mutableStateOf(false) }
     
     // States for dropdowns
@@ -308,7 +310,10 @@ fun SamplingFormScreen(
             Button(
                 onClick = {
                     viewModel.saveSampling {
-                        onBack()
+                        // Instead of moving back, stay and show success
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Muestreo guardado correctamente")
+                        }
                     }
                 },
                 modifier = Modifier

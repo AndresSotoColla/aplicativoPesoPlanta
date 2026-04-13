@@ -1,11 +1,12 @@
 package com.example.aplicativopesoplanta.utils
 
+import android.content.ContentValues
 import android.content.Context
-import android.content.Intent
 import android.os.Build
-import androidx.core.content.FileProvider
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Toast
 import com.example.aplicativopesoplanta.data.SamplingEntity
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -13,7 +14,6 @@ object CsvExporter {
     fun exportAndShare(context: Context, samplings: List<SamplingEntity>) {
         if (samplings.isEmpty()) return
 
-        // UTF-8 BOM for Excel compatibility
         val bom = "\uFEFF"
         val csvHeader = "bloque,peso,sistema_radicular,fusarium,fecha,fecha_envio,meristemo,hallazgos,observaciones,fecha_muestreo,usuario\n"
         
@@ -29,7 +29,7 @@ object CsvExporter {
             csvBody.append("${it.rootSystem},")
             csvBody.append("${if (it.fusarium) "Si" else "No"},")
             csvBody.append("${sdfFull.format(Date(it.date))},")
-            csvBody.append("$now,") // fecha_envio (current export time)
+            csvBody.append("$now,")
             csvBody.append("${if (it.meristem) "Si" else "No"},")
             csvBody.append("\"${it.findings}\",")
             csvBody.append("\"${it.observations}\",")
@@ -38,23 +38,36 @@ object CsvExporter {
         }
 
         val fileName = "Muestreo_Peso_Planta_${System.currentTimeMillis()}.csv"
-        // We still use .csv but with BOM and these columns it opens perfectly in Excel
-        val file = File(context.cacheDir, fileName)
-        file.writeText(bom + csvHeader + csvBody.toString())
+        val content = bom + csvHeader + csvBody.toString()
 
-        val contentUri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file
-        )
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val resolver = context.contentResolver
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                }
 
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/csv"
-            putExtra(Intent.EXTRA_SUBJECT, "Muestreos Peso Planta")
-            putExtra(Intent.EXTRA_STREAM, contentUri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                uri?.let {
+                    resolver.openOutputStream(it).use { outputStream ->
+                        outputStream?.write(content.toByteArray(Charsets.UTF_8))
+                    }
+                    Toast.makeText(context, "Guardado en Descargas: $fileName", Toast.LENGTH_LONG).show()
+                } ?: run {
+                    Toast.makeText(context, "Error al crear el archivo", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                // Legacy support for older Android (using public directory)
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val file = java.io.File(downloadsDir, fileName)
+                file.writeText(content, Charsets.UTF_8)
+                Toast.makeText(context, "Guardado en Descargas: $fileName", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
         }
-
-        context.startActivity(Intent.createChooser(intent, "Compartir Reporte"))
     }
 }

@@ -190,9 +190,7 @@ class SamplingViewModel(context: Context) : ViewModel() {
     }
 
     private fun clearForm() {
-        // Reset specific fields but maybe keep the block if the user usually registers multiple in the same block?
-        // User said: "solo borre lo que se digito y se actualice la fecha y me permita escribir nuevos"
-        // I'll clear weight, observations, findings, and reset date. I'll keep the block to save time.
+        block = ""
         weightInput = ""
         samplingDate = System.currentTimeMillis()
         rootSystem = "Normal"
