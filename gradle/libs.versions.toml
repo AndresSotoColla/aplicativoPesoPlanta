@@ -10,7 +10,7 @@ kotlin = "2.2.10"
 composeBom = "2026.02.01"
 navigationCompose = "2.8.5"
 room = "2.6.1"
-ksp = "2.2.10-1.0.29" # Should match kotlin version
+ksp = "2.2.10-2.0.2" # Should match kotlin version
 
 
 [libraries]
