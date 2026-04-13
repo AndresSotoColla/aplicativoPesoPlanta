@@ -4,7 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.aplicativopesoplanta.ui.theme.LightBeige
+import com.example.aplicativopesoplanta.ui.theme.DarkBeige
 
 @Composable
 fun HomeScreen(
@@ -45,8 +46,8 @@ fun HomeScreen(
 
             HomeButton(
                 text = "Nuevo Muestreo",
-                icon = Icons.Default.Add,
-                color = Color.Black,
+                icon = Icons.Default.Science,
+                color = DarkBeige,
                 onClick = onNavigateToForm
             )
 
@@ -55,7 +56,7 @@ fun HomeScreen(
             HomeButton(
                 text = "Ver Historial",
                 icon = Icons.Default.History,
-                color = Color.Black,
+                color = DarkBeige,
                 onClick = onNavigateToHistory
             )
 
@@ -64,7 +65,7 @@ fun HomeScreen(
             HomeButton(
                 text = "Descargar Información",
                 icon = Icons.Default.Download,
-                color = Color.Black,
+                color = DarkBeige,
                 onClick = onExport
             )
         }
@@ -95,13 +96,13 @@ fun HomeButton(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Color.White,
+                tint = Color.Black,
                 modifier = Modifier.size(32.dp)
             )
             Spacer(modifier = Modifier.width(16.dp))
             Text(
                 text = text,
-                color = Color.White,
+                color = Color.Black,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold
             )
