@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             AplicativoPesoPlantaTheme {
                 val navController = rememberNavController()
-                val viewModel: SamplingViewModel = viewModel()
+                val viewModel: SamplingViewModel = viewModel(factory = SamplingViewModel.Factory)
                 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     NavHost(
