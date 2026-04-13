@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
@@ -42,6 +44,9 @@ fun HistoryScreen(
                 },
                 actions = {
                     if (samplings.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.uploadAllSamplings() }) {
+                            Icon(Icons.Default.CloudUpload, contentDescription = "Subir todo", tint = Color.Black)
+                        }
                         IconButton(onClick = { showDeleteAllDialog = true }) {
                             Icon(Icons.Default.Delete, contentDescription = "Borrar todo", tint = Color.Black)
                         }
@@ -83,13 +88,13 @@ fun HistoryScreen(
                     items(samplings) { sampling ->
                         SamplingItem(
                             sampling = sampling,
-                            onDelete = { viewModel.deleteSampling(sampling) }
+                            onDelete = { viewModel.deleteSampling(sampling) },
+                            onUpload = { viewModel.uploadSampling(sampling) }
                         )
                     }
                 }
             }
 
-            // Delete All Confirmation Dialog
             if (showDeleteAllDialog) {
                 AlertDialog(
                     onDismissRequest = { showDeleteAllDialog = false },
@@ -118,7 +123,8 @@ fun HistoryScreen(
 @Composable
 fun SamplingItem(
     sampling: SamplingEntity,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onUpload: () -> Unit
 ) {
     val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
     Card(
@@ -133,25 +139,49 @@ fun SamplingItem(
                 verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Bloque: ${sampling.block}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Bloque: ${sampling.block}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        if (sampling.isSynced) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(
+                                Icons.Default.CloudDone,
+                                contentDescription = "Sincronizado",
+                                tint = Color(0xFF4CAF50),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                     Text(
                         text = sdf.format(Date(sampling.date)),
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Black.copy(alpha = 0.6f)
                     )
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Borrar registro",
-                        tint = Color.Red.copy(alpha = 0.7f),
-                        modifier = Modifier.size(24.dp)
-                    )
+                
+                Row {
+                    if (!sampling.isSynced) {
+                        IconButton(onClick = onUpload) {
+                            Icon(
+                                imageVector = Icons.Default.CloudUpload,
+                                contentDescription = "Subir a la nube",
+                                tint = Color(0xFF2196F3),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Borrar registro",
+                            tint = Color.Red.copy(alpha = 0.7f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
             

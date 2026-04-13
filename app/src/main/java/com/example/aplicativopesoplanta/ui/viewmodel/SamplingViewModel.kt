@@ -1,23 +1,28 @@
 package com.example.aplicativopesoplanta.ui.viewmodel
 
 import android.content.Context
+import android.os.Build
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewModelScope
 import com.example.aplicativopesoplanta.data.AppDatabase
 import com.example.aplicativopesoplanta.data.CachedBlockEntity
 import com.example.aplicativopesoplanta.data.SamplingEntity
 import com.example.aplicativopesoplanta.data.network.NetworkModule
+import com.example.aplicativopesoplanta.data.network.SamplingUploadRequest
 import com.example.aplicativopesoplanta.utils.CsvExporter
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.CreationExtras
+import java.text.SimpleDateFormat
+import java.util.*
 
 class SamplingViewModel(context: Context) : ViewModel() {
+    private val dao = AppDatabase.getDatabase(context).samplingDao()
+
     companion object {
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -30,7 +35,6 @@ class SamplingViewModel(context: Context) : ViewModel() {
             }
         }
     }
-    private val dao = AppDatabase.getDatabase(context).samplingDao()
 
     // Form State
     var block by mutableStateOf("")
@@ -48,12 +52,10 @@ class SamplingViewModel(context: Context) : ViewModel() {
     val samplings: StateFlow<List<SamplingEntity>> = dao.getAllSamplings()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Cached Blocks for Dropdown
     val availableBlocks: StateFlow<List<String>> = dao.getCachedBlocks()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        // Automatically sync blocks on start
         syncBlocks()
     }
 
@@ -67,8 +69,49 @@ class SamplingViewModel(context: Context) : ViewModel() {
                     dao.insertBlocks(entities)
                 }
             } catch (e: Exception) {
-                // If network fails, we quietly keep using the cached blocks from DAO
                 e.printStackTrace()
+            }
+        }
+    }
+
+    fun uploadSampling(sampling: SamplingEntity, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                val sdfShort = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                
+                val request = SamplingUploadRequest(
+                    bloque = sampling.block,
+                    peso = sampling.weight,
+                    sistemaRadicular = sampling.rootSystem,
+                    fusarium = if (sampling.fusarium) "Si" else "No",
+                    fecha = sdf.format(Date(sampling.date)),
+                    fecha_envio = sdf.format(Date()), // Actual time
+                    meristemo = if (sampling.meristem) "Si" else "No",
+                    hallagzos = sampling.findings, // JSON key hallazgos from snippet
+                    Observaciones = sampling.observations,
+                    fecha_muestreo = sdfShort.format(Date(sampling.date)),
+                    usuario = "${Build.MANUFACTURER} ${Build.MODEL}"
+                )
+
+                val response = NetworkModule.apiService.uploadSampling(request)
+                if (response.isSuccessful) {
+                    dao.updateSyncStatus(sampling.id, true)
+                    onResult(true)
+                } else {
+                    onResult(false)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onResult(false)
+            }
+        }
+    }
+
+    fun uploadAllSamplings() {
+        viewModelScope.launch {
+            samplings.value.filter { !it.isSynced }.forEach { sampling ->
+                uploadSampling(sampling)
             }
         }
     }

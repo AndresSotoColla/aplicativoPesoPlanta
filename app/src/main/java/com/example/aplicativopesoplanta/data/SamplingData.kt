@@ -15,7 +15,8 @@ data class SamplingEntity(
     val fusarium: Boolean,
     val meristem: Boolean,
     val findings: String, // Comma-separated values
-    val observations: String
+    val observations: String,
+    val isSynced: Boolean = false
 )
 
 @Entity(tableName = "cached_blocks")
@@ -34,6 +35,9 @@ interface SamplingDao {
     @Delete
     suspend fun deleteSampling(sampling: SamplingEntity): Int
 
+    @Query("UPDATE samplings SET isSynced = :status WHERE id = :id")
+    suspend fun updateSyncStatus(id: Int, status: Boolean)
+
     @Query("DELETE FROM samplings")
     suspend fun deleteAll()
 
@@ -48,7 +52,7 @@ interface SamplingDao {
     suspend fun clearCachedBlocks()
 }
 
-@Database(entities = [SamplingEntity::class, CachedBlockEntity::class], version = 2, exportSchema = false)
+@Database(entities = [SamplingEntity::class, CachedBlockEntity::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun samplingDao(): SamplingDao
 
@@ -63,7 +67,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "sampling_database"
                 )
-                .fallbackToDestructiveMigration() // Simple for this use case
+                .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
                 instance
