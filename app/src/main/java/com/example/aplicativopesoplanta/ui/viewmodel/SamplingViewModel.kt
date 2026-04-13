@@ -50,13 +50,16 @@ class SamplingViewModel(context: Context) : ViewModel() {
     val findingOptions = listOf("Sinfilido", "Caracol", "Babosa", "Hormiga", "Cochinilla", "Ninguna")
 
     // Data from Database
-    val samplings: StateFlow<List<SamplingEntity>> = dao.getAllSamplings()
+    private val _samplings = dao.getAllSamplings()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    
+    val samplings: StateFlow<List<SamplingEntity>> = _samplings
+    var samplingsList by mutableStateOf<List<SamplingEntity>>(emptyList())
 
     val availableBlocks: StateFlow<List<String>> = dao.getCachedBlocks()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Statistics (Derived from samplings, block, and date)
+    // Statistics (Derived from samplingsList, block, and date)
     val todayBlockStats by derivedStateOf {
         val currentBlock = block
         val currentDate = samplingDate
@@ -66,7 +69,7 @@ class SamplingViewModel(context: Context) : ViewModel() {
         val day = calendar.get(Calendar.DAY_OF_YEAR)
         val year = calendar.get(Calendar.YEAR)
 
-        val filtered = samplings.value.filter {
+        val filtered = samplingsList.filter {
             val sCalendar = Calendar.getInstance().apply { timeInMillis = it.date }
             it.block == currentBlock && 
             sCalendar.get(Calendar.DAY_OF_YEAR) == day &&
@@ -82,6 +85,12 @@ class SamplingViewModel(context: Context) : ViewModel() {
         // Load findings from prefs
         val savedFindings = prefs.getStringSet("findings", setOf("Ninguna")) ?: setOf("Ninguna")
         selectedFindings.addAll(savedFindings)
+        
+        viewModelScope.launch {
+            _samplings.collect {
+                samplingsList = it
+            }
+        }
         
         syncBlocks()
     }
