@@ -17,10 +17,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.aplicativopesoplanta.ui.viewmodel.SamplingViewModel
+import androidx.compose.material3.ExperimentalMaterial3Api
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(Material3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SamplingFormScreen(
     viewModel: SamplingViewModel,
