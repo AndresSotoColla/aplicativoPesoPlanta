@@ -1,23 +1,24 @@
 package com.example.aplicativopesoplanta.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.aplicativopesoplanta.data.SamplingEntity
 import com.example.aplicativopesoplanta.ui.viewmodel.SamplingViewModel
-import androidx.compose.material3.ExperimentalMaterial3Api
+import com.example.aplicativopesoplanta.ui.theme.LightBeige
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -28,51 +29,147 @@ fun HistoryScreen(
     onBack: () -> Unit
 ) {
     val samplings by viewModel.samplings.collectAsState()
+    var showDeleteAllDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Historial de Muestreos") },
+            CenterAlignedTopAppBar(
+                title = { Text("Historial de Muestreos", color = Color.Black, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Atrás", tint = Color.Black)
                     }
-                }
+                },
+                actions = {
+                    if (samplings.isNotEmpty()) {
+                        IconButton(onClick = { showDeleteAllDialog = true }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Borrar todo", tint = Color.Black)
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = LightBeige
+                )
             )
-        }
+        },
+        containerColor = LightBeige
     ) { paddingValues ->
-        if (samplings.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .padding(paddingValues)
-                    .fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+            if (samplings.isEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Icon(
                         Icons.Default.Info,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.outline
+                        tint = Color.Black.copy(alpha = 0.5f)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         "No hay muestreos registrados",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.outline
+                        color = Color.Black.copy(alpha = 0.5f)
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(samplings) { sampling ->
+                        SamplingItem(
+                            sampling = sampling,
+                            onDelete = { viewModel.deleteSampling(sampling) }
+                        )
+                    }
+                }
+            }
+
+            // Delete All Confirmation Dialog
+            if (showDeleteAllDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteAllDialog = false },
+                    title = { Text("Confirmar borrado", color = Color.Black) },
+                    text = { Text("¿Estás seguro de que deseas borrar todos los registros? Esta acción no se puede deshacer.", color = Color.Black) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            viewModel.deleteAllSamplings()
+                            showDeleteAllDialog = false
+                        }) {
+                            Text("BORRAR TODO", color = Color.Red, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteAllDialog = false }) {
+                            Text("CANCELAR", color = Color.Black)
+                        }
+                    },
+                    containerColor = LightBeige
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SamplingItem(
+    sampling: SamplingEntity,
+    onDelete: () -> Unit
+) {
+    val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Bloque: ${sampling.block}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Text(
+                        text = sdf.format(Date(sampling.date)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Black.copy(alpha = 0.6f)
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Borrar registro",
+                        tint = Color.Red.copy(alpha = 0.7f),
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .padding(paddingValues)
-                    .fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(samplings) { sampling ->
-                    SamplingItem(sampling)
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                HistoryRow("Peso:", "${sampling.weight}g")
+                HistoryRow("Sistema:", sampling.rootSystem)
+                HistoryRow("Hallazgos:", sampling.findings)
+                
+                if (sampling.observations.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Obs: ${sampling.observations}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Black,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                    )
                 }
             }
         }
@@ -80,42 +177,19 @@ fun HistoryScreen(
 }
 
 @Composable
-fun SamplingItem(sampling: SamplingEntity) {
-    val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Bloque: ${sampling.block}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = sdf.format(Date(sampling.date)),
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = "Peso: ${sampling.weight}g", fontSize = 14.sp)
-            Text(text = "Sistema Radicular: ${sampling.rootSystem}", fontSize = 14.sp)
-            Text(text = "Hallazgos: ${sampling.findings}", fontSize = 14.sp)
-            
-            if (sampling.observations.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Obs: ${sampling.observations}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+fun HistoryRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label, 
+            style = MaterialTheme.typography.bodyMedium, 
+            fontWeight = FontWeight.Bold,
+            color = Color.Black,
+            modifier = Modifier.width(80.dp)
+        )
+        Text(
+            text = value, 
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.Black
+        )
     }
 }

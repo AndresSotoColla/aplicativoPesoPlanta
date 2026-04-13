@@ -72,6 +72,18 @@ class SamplingViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun deleteSampling(sampling: SamplingEntity) {
+        viewModelScope.launch {
+            dao.deleteSampling(sampling)
+        }
+    }
+
+    fun deleteAllSamplings() {
+        viewModelScope.launch {
+            dao.deleteAll()
+        }
+    }
+
     private fun clearForm() {
         block = ""
         samplingDate = System.currentTimeMillis()

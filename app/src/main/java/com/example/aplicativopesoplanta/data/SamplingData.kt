@@ -28,6 +28,9 @@ interface SamplingDao {
 
     @Delete
     suspend fun deleteSampling(sampling: SamplingEntity): Int
+
+    @Query("DELETE FROM samplings")
+    suspend fun deleteAll()
 }
 
 @Database(entities = [SamplingEntity::class], version = 1)

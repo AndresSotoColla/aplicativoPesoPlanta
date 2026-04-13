@@ -1,7 +1,6 @@
 package com.example.aplicativopesoplanta.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -12,12 +11,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.aplicativopesoplanta.ui.theme.LightBeige
 
 @Composable
 fun HomeScreen(
@@ -28,11 +27,7 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.surface)
-                )
-            )
+            .background(LightBeige)
             .padding(24.dp)
     ) {
         Column(
@@ -44,14 +39,14 @@ fun HomeScreen(
                 text = "Muestreo Peso Planta",
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
+                color = Color.Black,
                 modifier = Modifier.padding(bottom = 48.dp)
             )
 
             HomeButton(
                 text = "Nuevo Muestreo",
                 icon = Icons.Default.Add,
-                color = MaterialTheme.colorScheme.primary,
+                color = Color.Black,
                 onClick = onNavigateToForm
             )
 
@@ -60,7 +55,7 @@ fun HomeScreen(
             HomeButton(
                 text = "Ver Historial",
                 icon = Icons.Default.History,
-                color = MaterialTheme.colorScheme.secondary,
+                color = Color.Black,
                 onClick = onNavigateToHistory
             )
 
@@ -69,7 +64,7 @@ fun HomeScreen(
             HomeButton(
                 text = "Descargar Información",
                 icon = Icons.Default.Download,
-                color = MaterialTheme.colorScheme.tertiary,
+                color = Color.Black,
                 onClick = onExport
             )
         }
