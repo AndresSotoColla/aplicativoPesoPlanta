@@ -190,6 +190,11 @@ class SamplingViewModel(context: Context) : ViewModel() {
     }
 
     fun saveSampling(onSuccess: (String?) -> Unit) {
+        if (!availableBlocks.value.contains(block)) {
+            onSuccess("El bloque no existe en el cronograma")
+            return
+        }
+
         val weight = weightInput.toDoubleOrNull()
         
         if (weight == null || weight <= 0) {

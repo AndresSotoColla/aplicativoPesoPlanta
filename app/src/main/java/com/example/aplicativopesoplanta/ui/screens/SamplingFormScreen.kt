@@ -52,6 +52,11 @@ fun SamplingFormScreen(
         }
     }
 
+    // Block Validation: Must be exactly in the list
+    val isBlockValid = remember(viewModel.block, availableBlocks) {
+        viewModel.block.isEmpty() || availableBlocks.contains(viewModel.block)
+    }
+
     // Stats
     val (count, avg) = viewModel.todayBlockStats
 
@@ -92,7 +97,7 @@ fun SamplingFormScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Stats Header
-            if (viewModel.block.isNotEmpty()) {
+            if (viewModel.block.isNotEmpty() && isBlockValid) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = DarkBeige),
@@ -138,7 +143,7 @@ fun SamplingFormScreen(
 
             val blackTextStyle = TextStyle(color = Color.Black, fontSize = 16.sp)
 
-            // Block (Filterable Dropdown)
+            // Block (Filterable Dropdown) with validation
             Text("Bloque a muestrear", fontWeight = FontWeight.Bold, color = Color.Black)
             ExposedDropdownMenuBox(
                 expanded = blockMenuExpanded,
@@ -150,13 +155,20 @@ fun SamplingFormScreen(
                     onValueChange = { 
                         viewModel.updateBlock(it) 
                     },
-                    label = { Text("Escriba o seleccione bloque", color = Color.Black) },
+                    label = { Text("Escriba o seleccione bloque", color = if (isBlockValid) Color.Black else Color.Red) },
                     textStyle = blackTextStyle,
+                    isError = !isBlockValid,
+                    supportingText = {
+                        if (!isBlockValid) {
+                            Text("El bloque no existe en el cronograma", color = Color.Red)
+                        }
+                    },
                     modifier = Modifier.menuAnchor().fillMaxWidth(),
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = blockMenuExpanded) },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color.Black,
-                        unfocusedBorderColor = Color.Black
+                        focusedBorderColor = if (isBlockValid) Color.Black else Color.Red,
+                        unfocusedBorderColor = if (isBlockValid) Color.Black else Color.Red,
+                        errorBorderColor = Color.Red
                     )
                 )
 
@@ -382,7 +394,7 @@ fun SamplingFormScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = !isWeightError,
+                enabled = isWeightError.not() && isBlockValid && viewModel.block.isNotEmpty(),
                 shape = MaterialTheme.shapes.medium,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.Black,
