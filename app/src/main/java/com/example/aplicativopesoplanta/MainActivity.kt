@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
                             HomeScreen(
                                 onNavigateToForm = { navController.navigate("form") },
                                 onNavigateToHistory = { navController.navigate("history") },
-                                onExport = { viewModel.exportToCSV(this@MainActivity) }
+                                onExport = { viewModel.exportToCsv(this@MainActivity) }
                             ) 
                         }
                         composable("form") { 
