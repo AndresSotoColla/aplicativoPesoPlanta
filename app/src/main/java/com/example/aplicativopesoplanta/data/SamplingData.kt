@@ -24,10 +24,10 @@ interface SamplingDao {
     fun getAllSamplings(): Flow<List<SamplingEntity>>
 
     @Insert
-    suspend fun insertSampling(sampling: SamplingEntity)
+    suspend fun insertSampling(sampling: SamplingEntity): Long
 
     @Delete
-    suspend fun deleteSampling(sampling: SamplingEntity)
+    suspend fun deleteSampling(sampling: SamplingEntity): Int
 }
 
 @Database(entities = [SamplingEntity::class], version = 1)
