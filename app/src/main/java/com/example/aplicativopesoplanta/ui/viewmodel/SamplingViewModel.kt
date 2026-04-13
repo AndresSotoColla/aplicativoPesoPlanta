@@ -22,6 +22,7 @@ import java.util.*
 
 class SamplingViewModel(context: Context) : ViewModel() {
     private val dao = AppDatabase.getDatabase(context).samplingDao()
+    private val prefs = context.getSharedPreferences("sampling_prefs", Context.MODE_PRIVATE)
 
     companion object {
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
@@ -37,15 +38,15 @@ class SamplingViewModel(context: Context) : ViewModel() {
     }
 
     // Form State
-    var block by mutableStateOf("")
+    var block by mutableStateOf(prefs.getString("block", "") ?: "")
     var samplingDate by mutableLongStateOf(System.currentTimeMillis())
-    var weightInput by mutableStateOf("")
-    var rootSystem by mutableStateOf("Normal")
-    var fusarium by mutableStateOf(false)
-    var meristem by mutableStateOf(false)
-    var observations by mutableStateOf("")
+    var weightInput by mutableStateOf(prefs.getString("weight", "") ?: "")
+    var rootSystem by mutableStateOf(prefs.getString("rootSystem", "Normal") ?: "Normal")
+    var fusarium by mutableStateOf(prefs.getBoolean("fusarium", false))
+    var meristem by mutableStateOf(prefs.getBoolean("meristem", false))
+    var observations by mutableStateOf(prefs.getString("observations", "") ?: "")
     
-    val selectedFindings = mutableStateListOf<String>("Ninguna")
+    val selectedFindings = mutableStateListOf<String>()
     val findingOptions = listOf("Sinfilido", "Caracol", "Babosa", "Hormiga", "Cochinilla", "Ninguna")
 
     // Data from Database
@@ -56,8 +57,33 @@ class SamplingViewModel(context: Context) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
+        // Load findings from prefs
+        val savedFindings = prefs.getStringSet("findings", setOf("Ninguna")) ?: setOf("Ninguna")
+        selectedFindings.addAll(savedFindings)
+        
         syncBlocks()
     }
+
+    private fun saveFormToPrefs() {
+        prefs.edit().apply {
+            putString("block", block)
+            putString("weight", weightInput)
+            putString("rootSystem", rootSystem)
+            putBoolean("fusarium", fusarium)
+            putBoolean("meristem", meristem)
+            putString("observations", observations)
+            putStringSet("findings", selectedFindings.toSet())
+            apply()
+        }
+    }
+
+    // Wrap state updates to auto-save
+    fun updateBlock(value: String) { block = value; saveFormToPrefs() }
+    fun updateWeight(value: String) { weightInput = value; saveFormToPrefs() }
+    fun updateRootSystem(value: String) { rootSystem = value; saveFormToPrefs() }
+    fun updateFusarium(value: Boolean) { fusarium = value; saveFormToPrefs() }
+    fun updateMeristem(value: Boolean) { meristem = value; saveFormToPrefs() }
+    fun updateObservations(value: String) { observations = value; saveFormToPrefs() }
 
     fun syncBlocks() {
         viewModelScope.launch {
@@ -86,9 +112,9 @@ class SamplingViewModel(context: Context) : ViewModel() {
                     sistemaRadicular = sampling.rootSystem,
                     fusarium = if (sampling.fusarium) "Si" else "No",
                     fecha = sdf.format(Date(sampling.date)),
-                    fecha_envio = sdf.format(Date()), // Actual time
+                    fecha_envio = sdf.format(Date()),
                     meristemo = if (sampling.meristem) "Si" else "No",
-                    hallazgos = sampling.findings, // JSON key hallazgos
+                    hallazgos = sampling.findings,
                     Observaciones = sampling.observations,
                     fecha_muestreo = sdfShort.format(Date(sampling.date)),
                     usuario = "${Build.MANUFACTURER} ${Build.MODEL}"
@@ -129,6 +155,7 @@ class SamplingViewModel(context: Context) : ViewModel() {
                 selectedFindings.add(finding)
             }
         }
+        saveFormToPrefs()
     }
 
     fun saveSampling(onSuccess: () -> Unit) {
@@ -163,15 +190,18 @@ class SamplingViewModel(context: Context) : ViewModel() {
     }
 
     private fun clearForm() {
-        block = ""
-        samplingDate = System.currentTimeMillis()
+        // Reset specific fields but maybe keep the block if the user usually registers multiple in the same block?
+        // User said: "solo borre lo que se digito y se actualice la fecha y me permita escribir nuevos"
+        // I'll clear weight, observations, findings, and reset date. I'll keep the block to save time.
         weightInput = ""
+        samplingDate = System.currentTimeMillis()
         rootSystem = "Normal"
         fusarium = false
         meristem = false
         observations = ""
         selectedFindings.clear()
         selectedFindings.add("Ninguna")
+        saveFormToPrefs()
     }
 
     fun exportToCsv(context: Context) {

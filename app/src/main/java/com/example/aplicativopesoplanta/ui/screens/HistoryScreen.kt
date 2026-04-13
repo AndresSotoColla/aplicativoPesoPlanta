@@ -1,5 +1,6 @@
 package com.example.aplicativopesoplanta.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,6 +33,12 @@ fun HistoryScreen(
 ) {
     val samplings by viewModel.samplings.collectAsState()
     var showDeleteAllDialog by remember { mutableStateOf(false) }
+    var samplingToDelete by remember { mutableStateOf<SamplingEntity?>(null) }
+
+    // Handle Hardware Back Button
+    BackHandler {
+        onBack()
+    }
 
     Scaffold(
         topBar = {
@@ -82,19 +89,43 @@ fun HistoryScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
+                    contentPadding = PaddingValues(bottom = 16.dp, start = 16.dp, end = 16.dp, top = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(samplings) { sampling ->
                         SamplingItem(
                             sampling = sampling,
-                            onDelete = { viewModel.deleteSampling(sampling) },
+                            onDelete = { samplingToDelete = sampling },
                             onUpload = { viewModel.uploadSampling(sampling) }
                         )
                     }
                 }
             }
 
+            // Individual Delete Confirmation
+            if (samplingToDelete != null) {
+                AlertDialog(
+                    onDismissRequest = { samplingToDelete = null },
+                    title = { Text("Borrar registro", color = Color.Black) },
+                    text = { Text("¿Deseas eliminar este muestreo del bloque ${samplingToDelete?.block}?", color = Color.Black) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            samplingToDelete?.let { viewModel.deleteSampling(it) }
+                            samplingToDelete = null
+                        }) {
+                            Text("BORRAR", color = Color.Red, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { samplingToDelete = null }) {
+                            Text("CANCELAR", color = Color.Black)
+                        }
+                    },
+                    containerColor = LightBeige
+                )
+            }
+
+            // Bulk Delete Confirmation
             if (showDeleteAllDialog) {
                 AlertDialog(
                     onDismissRequest = { showDeleteAllDialog = false },

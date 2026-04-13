@@ -1,5 +1,6 @@
 package com.example.aplicativopesoplanta.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -47,6 +48,11 @@ fun SamplingFormScreen(
         }
     }
 
+    // Handle Hardware Back Button
+    BackHandler {
+        onBack()
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -84,16 +90,13 @@ fun SamplingFormScreen(
             Text("Bloque a muestrear", fontWeight = FontWeight.Bold, color = Color.Black)
             ExposedDropdownMenuBox(
                 expanded = blockMenuExpanded,
-                onExpandedChange = { blockMenuExpanded = it }, // Respect the click on trailing icon
+                onExpandedChange = { blockMenuExpanded = it },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
                     value = viewModel.block,
                     onValueChange = { 
-                        viewModel.block = it
-                        // Don't auto-expand while typing if requested to only show on arrow click, 
-                        // but usually it's better to show it. The user said: 
-                        // "uno cokloque un indiico del bloque le de en la flecha y muestre las oicnicdencias"
+                        viewModel.updateBlock(it) 
                     },
                     label = { Text("Escriba o seleccione bloque", color = Color.Black) },
                     textStyle = blackTextStyle,
@@ -105,7 +108,6 @@ fun SamplingFormScreen(
                     )
                 )
 
-                // Show dropdown only if there are matches
                 if (filteredBlocks.isNotEmpty()) {
                     ExposedDropdownMenu(
                         expanded = blockMenuExpanded,
@@ -116,7 +118,7 @@ fun SamplingFormScreen(
                             DropdownMenuItem(
                                 text = { Text(selectionOption, color = Color.Black) },
                                 onClick = {
-                                    viewModel.block = selectionOption
+                                    viewModel.updateBlock(selectionOption)
                                     blockMenuExpanded = false
                                 },
                                 modifier = Modifier.background(DarkBeige)
@@ -126,7 +128,7 @@ fun SamplingFormScreen(
                 }
             }
 
-            // Date Picker
+            // Date Picker (Date is usually fresh, but let's keep it centered)
             val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
             OutlinedTextField(
                 value = sdf.format(Date(viewModel.samplingDate)),
@@ -171,7 +173,7 @@ fun SamplingFormScreen(
             // Weight
             OutlinedTextField(
                 value = viewModel.weightInput,
-                onValueChange = { viewModel.weightInput = it },
+                onValueChange = { viewModel.updateWeight(it) },
                 label = { Text("Peso (g)", color = Color.Black) },
                 textStyle = blackTextStyle,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -210,7 +212,7 @@ fun SamplingFormScreen(
                         DropdownMenuItem(
                             text = { Text(option, color = Color.Black) },
                             onClick = {
-                                viewModel.rootSystem = option
+                                viewModel.updateRootSystem(option)
                                 rootMenuExpanded = false
                             },
                             modifier = Modifier.background(DarkBeige)
@@ -224,7 +226,7 @@ fun SamplingFormScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(
                         checked = viewModel.fusarium, 
-                        onCheckedChange = { viewModel.fusarium = it },
+                        onCheckedChange = { viewModel.updateFusarium(it) },
                         colors = CheckboxDefaults.colors(checkedColor = Color.Black, uncheckedColor = Color.Black)
                     )
                     Text("Fusarium", color = Color.Black)
@@ -232,7 +234,7 @@ fun SamplingFormScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(
                         checked = viewModel.meristem, 
-                        onCheckedChange = { viewModel.meristem = it },
+                        onCheckedChange = { viewModel.updateMeristem(it) },
                         colors = CheckboxDefaults.colors(checkedColor = Color.Black, uncheckedColor = Color.Black)
                     )
                     Text("Meristemo", color = Color.Black)
@@ -247,7 +249,7 @@ fun SamplingFormScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
-                    value = viewModel.selectedFindings.joinToString(", "),
+                    value = if (viewModel.selectedFindings.isEmpty()) "Ninguna" else viewModel.selectedFindings.joinToString(", "),
                     onValueChange = {},
                     readOnly = true,
                     textStyle = blackTextStyle,
@@ -269,7 +271,7 @@ fun SamplingFormScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Checkbox(
                                         checked = viewModel.selectedFindings.contains(finding),
-                                        onCheckedChange = null, // Handled by onClick
+                                        onCheckedChange = null,
                                         colors = CheckboxDefaults.colors(checkedColor = Color.Black)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -289,7 +291,7 @@ fun SamplingFormScreen(
             // Observations
             OutlinedTextField(
                 value = viewModel.observations,
-                onValueChange = { viewModel.observations = it },
+                onValueChange = { viewModel.updateObservations(it) },
                 label = { Text("Observaciones", color = Color.Black) },
                 textStyle = blackTextStyle,
                 modifier = Modifier.fillMaxWidth(),
