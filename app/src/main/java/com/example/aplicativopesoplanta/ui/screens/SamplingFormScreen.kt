@@ -1,5 +1,6 @@
 package com.example.aplicativopesoplanta.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -12,12 +13,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.aplicativopesoplanta.ui.viewmodel.SamplingViewModel
-import androidx.compose.material3.ExperimentalMaterial3Api
+import com.example.aplicativopesoplanta.ui.theme.LightBeige
+import com.example.aplicativopesoplanta.ui.theme.DarkBeige
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -28,21 +31,34 @@ fun SamplingFormScreen(
     onBack: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     var showDatePicker by remember { mutableStateOf(false) }
+    
+    // States for dropdowns
+    var rootMenuExpanded by remember { mutableStateOf(false) }
+    var findingsMenuExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Nuevo Muestreo") },
+            CenterAlignedTopAppBar(
+                title = { 
+                    Text(
+                        "Nuevo Muestreo - Peso Planta", 
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Atrás", tint = Color.Black)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = LightBeige
+                )
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = LightBeige
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -52,12 +68,24 @@ fun SamplingFormScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Text style for all labels/inputs
+            val blackTextStyle = TextStyle(color = Color.Black, fontSize = 16.sp)
+
             // Block
             OutlinedTextField(
                 value = viewModel.block,
                 onValueChange = { viewModel.block = it },
-                label = { Text("Bloque a muestrear") },
-                modifier = Modifier.fillMaxWidth()
+                label = { Text("Bloque a muestrear", color = Color.Black) },
+                textStyle = blackTextStyle,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.Black,
+                    unfocusedTextColor = Color.Black,
+                    focusedBorderColor = Color.Black,
+                    unfocusedBorderColor = Color.Black,
+                    focusedLabelColor = Color.Black,
+                    unfocusedLabelColor = Color.Black
+                )
             )
 
             // Date Picker
@@ -65,14 +93,19 @@ fun SamplingFormScreen(
             OutlinedTextField(
                 value = sdf.format(Date(viewModel.samplingDate)),
                 onValueChange = {},
-                label = { Text("Fecha de muestreo") },
+                label = { Text("Fecha de muestreo", color = Color.Black) },
+                textStyle = blackTextStyle,
                 readOnly = true,
                 modifier = Modifier.fillMaxWidth(),
                 trailingIcon = {
                     IconButton(onClick = { showDatePicker = true }) {
-                        Icon(Icons.Default.CalendarMonth, contentDescription = "Seleccionar fecha")
+                        Icon(Icons.Default.CalendarMonth, contentDescription = "Seleccionar fecha", tint = Color.Black)
                     }
-                }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Black,
+                    unfocusedBorderColor = Color.Black
+                )
             )
 
             if (showDatePicker) {
@@ -87,10 +120,10 @@ fun SamplingFormScreen(
                                 viewModel.samplingDate = it
                             }
                             showDatePicker = false
-                        }) { Text("OK") }
+                        }) { Text("OK", color = Color.Black) }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") }
+                        TextButton(onClick = { showDatePicker = false }) { Text("Cancelar", color = Color.Black) }
                     }
                 ) {
                     DatePicker(state = datePickerState)
@@ -101,53 +134,117 @@ fun SamplingFormScreen(
             OutlinedTextField(
                 value = viewModel.weightInput,
                 onValueChange = { viewModel.weightInput = it },
-                label = { Text("Peso (g)") },
+                label = { Text("Peso (g)", color = Color.Black) },
+                textStyle = blackTextStyle,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Black,
+                    unfocusedBorderColor = Color.Black
+                )
             )
 
-            // Root System
-            Text("Sistema Radicular", fontWeight = FontWeight.Bold)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+            // Root System (Dropdown Single Selection)
+            Text("Sistema Radicular", fontWeight = FontWeight.Bold, color = Color.Black)
+            ExposedDropdownMenuBox(
+                expanded = rootMenuExpanded,
+                onExpandedChange = { rootMenuExpanded = !rootMenuExpanded },
+                modifier = Modifier.fillMaxWidth()
             ) {
-                listOf("Normal", "Regular", "Deficiente").forEach { option ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(
-                            selected = viewModel.rootSystem == option,
-                            onClick = { viewModel.rootSystem = option }
+                OutlinedTextField(
+                    value = viewModel.rootSystem,
+                    onValueChange = {},
+                    readOnly = true,
+                    textStyle = blackTextStyle,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = rootMenuExpanded) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Black,
+                        unfocusedBorderColor = Color.Black
+                    )
+                )
+                ExposedDropdownMenu(
+                    expanded = rootMenuExpanded,
+                    onDismissRequest = { rootMenuExpanded = false },
+                    modifier = Modifier.background(DarkBeige)
+                ) {
+                    listOf("Normal", "Regular", "Deficiente").forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option, color = Color.Black) },
+                            onClick = {
+                                viewModel.rootSystem = option
+                                rootMenuExpanded = false
+                            },
+                            modifier = Modifier.background(DarkBeige)
                         )
-                        Text(option)
                     }
                 }
             }
 
-            // Checkboxes
+            // Checkboxes (Fusarium/Meristem)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = viewModel.fusarium, onCheckedChange = { viewModel.fusarium = it })
-                    Text("Fusarium")
+                    Checkbox(
+                        checked = viewModel.fusarium, 
+                        onCheckedChange = { viewModel.fusarium = it },
+                        colors = CheckboxDefaults.colors(checkedColor = Color.Black, uncheckedColor = Color.Black)
+                    )
+                    Text("Fusarium", color = Color.Black)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = viewModel.meristem, onCheckedChange = { viewModel.meristem = it })
-                    Text("Meristemo")
+                    Checkbox(
+                        checked = viewModel.meristem, 
+                        onCheckedChange = { viewModel.meristem = it },
+                        colors = CheckboxDefaults.colors(checkedColor = Color.Black, uncheckedColor = Color.Black)
+                    )
+                    Text("Meristemo", color = Color.Black)
                 }
             }
 
-            // Findings (Hallazgos)
-            Text("Hallazgos", fontWeight = FontWeight.Bold)
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            // Findings (Dropdown Multiple Selection)
+            Text("Hallazgos", fontWeight = FontWeight.Bold, color = Color.Black)
+            ExposedDropdownMenuBox(
+                expanded = findingsMenuExpanded,
+                onExpandedChange = { findingsMenuExpanded = !findingsMenuExpanded },
+                modifier = Modifier.fillMaxWidth()
             ) {
-                viewModel.findingOptions.forEach { finding ->
-                    FilterChip(
-                        selected = viewModel.selectedFindings.contains(finding),
-                        onClick = { viewModel.onFindingToggle(finding) },
-                        label = { Text(finding) }
+                OutlinedTextField(
+                    value = viewModel.selectedFindings.joinToString(", "),
+                    onValueChange = {},
+                    readOnly = true,
+                    textStyle = blackTextStyle,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = findingsMenuExpanded) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Black,
+                        unfocusedBorderColor = Color.Black
                     )
+                )
+                ExposedDropdownMenu(
+                    expanded = findingsMenuExpanded,
+                    onDismissRequest = { findingsMenuExpanded = false },
+                    modifier = Modifier.background(DarkBeige)
+                ) {
+                    viewModel.findingOptions.forEach { finding ->
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = viewModel.selectedFindings.contains(finding),
+                                        onCheckedChange = null, // Handled by onClick
+                                        colors = CheckboxDefaults.colors(checkedColor = Color.Black)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(finding, color = Color.Black)
+                                }
+                            },
+                            onClick = {
+                                viewModel.onFindingToggle(finding)
+                                if (finding == "Ninguna") findingsMenuExpanded = false
+                            },
+                            modifier = Modifier.background(DarkBeige)
+                        )
+                    }
                 }
             }
 
@@ -155,9 +252,14 @@ fun SamplingFormScreen(
             OutlinedTextField(
                 value = viewModel.observations,
                 onValueChange = { viewModel.observations = it },
-                label = { Text("Observaciones") },
+                label = { Text("Observaciones", color = Color.Black) },
+                textStyle = blackTextStyle,
                 modifier = Modifier.fillMaxWidth(),
-                minLines = 3
+                minLines = 3,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Black,
+                    unfocusedBorderColor = Color.Black
+                )
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -166,34 +268,17 @@ fun SamplingFormScreen(
             Button(
                 onClick = {
                     viewModel.saveSampling {
-                        // Show snackbar or toast and go back
                         onBack()
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                shape = MaterialTheme.shapes.medium
+                shape = MaterialTheme.shapes.medium,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
             ) {
-                Text("GUARDAR", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("GUARDAR", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun FlowRow(
-    modifier: Modifier = Modifier,
-    horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
-    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
-    content: @Composable () -> Unit
-) {
-    androidx.compose.foundation.layout.FlowRow(
-        modifier = modifier,
-        horizontalArrangement = horizontalArrangement,
-        verticalArrangement = verticalArrangement
-    ) {
-        content()
     }
 }
