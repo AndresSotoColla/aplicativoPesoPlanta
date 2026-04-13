@@ -88,7 +88,7 @@ class SamplingViewModel(context: Context) : ViewModel() {
                     fecha = sdf.format(Date(sampling.date)),
                     fecha_envio = sdf.format(Date()), // Actual time
                     meristemo = if (sampling.meristem) "Si" else "No",
-                    hallagzos = sampling.findings, // JSON key hallazgos from snippet
+                    hallazgos = sampling.findings, // JSON key hallazgos
                     Observaciones = sampling.observations,
                     fecha_muestreo = sdfShort.format(Date(sampling.date)),
                     usuario = "${Build.MANUFACTURER} ${Build.MODEL}"
