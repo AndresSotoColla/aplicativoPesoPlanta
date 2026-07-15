@@ -8,11 +8,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -479,24 +482,36 @@ fun BatchSamplingForm(
 
     val categories = listOf("Muy Pequeño", "Pequeño", "Mediano", "Grande", "Muy Grande")
     
-    // 15 slots for weights and categories
+    // slots for weights and categories
     val plantWeights = remember { mutableStateListOf<String>().apply { repeat(15) { add("") } } }
     val plantCategories = remember { mutableStateListOf<String>().apply { repeat(15) { add("") } } }
+    val plantFocusStates = remember { mutableStateListOf<Boolean>().apply { repeat(15) { add(false) } } }
 
-    fun checkIsRowDeviated(weightStr: String, category: String): Boolean {
+    val overallAverage by remember(plantWeights) {
+        derivedStateOf {
+            val weights = plantWeights.mapNotNull { it.toDoubleOrNull() }.filter { it > 0.0 }
+            if (weights.isEmpty()) 0.0 else weights.average()
+        }
+    }
+
+    fun checkIsRowDeviated(weightStr: String, category: String, isFocused: Boolean): Boolean {
+        if (isFocused) return false // Do not warn while typing
         val w = weightStr.toDoubleOrNull() ?: return false
-        if (category.isEmpty()) return false
+        if (category.isEmpty() || w <= 0.0) return false
+        val avg = overallAverage
+        if (avg <= 0.0) return false
         
-        val (expectedAvg, maxSd) = when (category) {
-            "Muy Pequeño" -> Pair(500.0, 150.0)
-            "Pequeño" -> Pair(1000.0, 200.0)
-            "Mediano" -> Pair(1500.0, 250.0)
-            "Grande" -> Pair(2000.0, 300.0)
-            "Muy Grande" -> Pair(2500.0, 400.0)
-            else -> Pair(0.0, 0.0)
+        val expectedAvg = when (category) {
+            "Muy Pequeño" -> 0.4 * avg
+            "Pequeño" -> 0.7 * avg
+            "Mediano" -> 1.0 * avg
+            "Grande" -> 1.3 * avg
+            "Muy Grande" -> 1.6 * avg
+            else -> 0.0
         }
         
-        return Math.abs(w - expectedAvg) > maxSd
+        val maxDeviation = expectedAvg * 0.45 // 45% tolerance
+        return Math.abs(w - expectedAvg) > maxDeviation
     }
 
     // Real-time Category Counts
@@ -536,10 +551,10 @@ fun BatchSamplingForm(
         }
     }
 
-    val hasAnyDeviated by remember(plantWeights, plantCategories) {
+    val hasAnyDeviated by remember(plantWeights, plantCategories, plantFocusStates) {
         derivedStateOf {
             plantWeights.indices.any { idx ->
-                checkIsRowDeviated(plantWeights[idx], plantCategories[idx])
+                checkIsRowDeviated(plantWeights[idx], plantCategories[idx], plantFocusStates.getOrNull(idx) ?: false)
             }
         }
     }
@@ -644,7 +659,7 @@ fun BatchSamplingForm(
             }
         }
 
-        // 15 Plants Slots Card
+        // Plants Slots Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -652,16 +667,37 @@ fun BatchSamplingForm(
             border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = "Registro de 15 Plantas",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp, start = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Registro Peso Planta",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        fontSize = 16.sp
+                    )
+                    IconButton(
+                        onClick = {
+                            plantWeights.add("")
+                            plantCategories.add("")
+                            plantFocusStates.add(false)
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Agregar planta",
+                            tint = Color.Black
+                        )
+                    }
+                }
                 
-                for (i in 0 until 15) {
-                    val isDeviated = checkIsRowDeviated(plantWeights[i], plantCategories[i])
+                for (i in 0 until plantWeights.size) {
+                    val isDeviated = checkIsRowDeviated(plantWeights[i], plantCategories[i], plantFocusStates.getOrNull(i) ?: false)
                     PlantInputRow(
                         index = i,
                         weight = plantWeights[i],
@@ -669,9 +705,23 @@ fun BatchSamplingForm(
                         category = plantCategories[i],
                         onCategoryChange = { plantCategories[i] = it },
                         categories = categories,
-                        isDeviated = isDeviated
+                        isDeviated = isDeviated,
+                        onFocusChange = { isFocused ->
+                            if (i < plantFocusStates.size) {
+                                plantFocusStates[i] = isFocused
+                            }
+                        },
+                        onDeleteClick = {
+                            if (plantWeights.size > 1) {
+                                plantWeights.removeAt(i)
+                                plantCategories.removeAt(i)
+                                if (i < plantFocusStates.size) {
+                                    plantFocusStates.removeAt(i)
+                                }
+                            }
+                        }
                     )
-                    if (i < 14) {
+                    if (i < plantWeights.size - 1) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -924,10 +974,14 @@ fun BatchSamplingForm(
                                 snackbarHostState.showSnackbar(errorMsg)
                             } else {
                                 snackbarHostState.showSnackbar("Lote de $sampleCount plantas guardado correctamente")
-                                // Clear the lists
-                                plantWeights.indices.forEach { idx ->
-                                    plantWeights[idx] = ""
-                                    plantCategories[idx] = ""
+                                // Clear the lists and reset to 15 slots
+                                plantWeights.clear()
+                                plantCategories.clear()
+                                plantFocusStates.clear()
+                                repeat(15) {
+                                    plantWeights.add("")
+                                    plantCategories.add("")
+                                    plantFocusStates.add(false)
                                 }
                             }
                         }
@@ -958,16 +1012,19 @@ fun PlantInputRow(
     category: String,
     onCategoryChange: (String) -> Unit,
     categories: List<String>,
-    isDeviated: Boolean
+    isDeviated: Boolean,
+    onFocusChange: (Boolean) -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    var isFocused by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         // Label (e.g. "01")
         Text(
@@ -975,7 +1032,7 @@ fun PlantInputRow(
             fontWeight = FontWeight.Bold,
             color = Color.Black,
             fontSize = 14.sp,
-            modifier = Modifier.width(24.dp)
+            modifier = Modifier.width(22.dp)
         )
 
         // Weight Input Field
@@ -989,7 +1046,13 @@ fun PlantInputRow(
             label = { Text("Peso (g)", fontSize = 11.sp, color = Color.Gray) },
             textStyle = TextStyle(color = Color.Black, fontSize = 14.sp),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.weight(1.2f).height(52.dp),
+            modifier = Modifier
+                .weight(1.1f)
+                .height(52.dp)
+                .onFocusChanged {
+                    isFocused = it.isFocused
+                    onFocusChange(it.isFocused)
+                },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color.Black,
@@ -1000,7 +1063,7 @@ fun PlantInputRow(
         // Category Selector Box
         Box(
             modifier = Modifier
-                .weight(1.5f)
+                .weight(1.4f)
                 .height(52.dp)
         ) {
             OutlinedButton(
@@ -1046,7 +1109,7 @@ fun PlantInputRow(
 
         // Deviation Alert Column
         Box(
-            modifier = Modifier.width(85.dp),
+            modifier = Modifier.width(72.dp),
             contentAlignment = Alignment.CenterStart
         ) {
             if (isDeviated) {
@@ -1054,15 +1117,28 @@ fun PlantInputRow(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Text("⚠️", fontSize = 12.sp)
+                    Text("⚠️", fontSize = 11.sp)
                     Text(
                         text = "Muy desviado",
                         color = Color.Red,
-                        fontSize = 9.sp,
+                        fontSize = 8.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
+        }
+
+        // Delete Button
+        IconButton(
+            onClick = onDeleteClick,
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = "Eliminar fila",
+                tint = Color.Red.copy(alpha = 0.7f),
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
