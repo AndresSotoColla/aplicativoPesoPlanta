@@ -224,6 +224,45 @@ class SamplingViewModel(context: Context) : ViewModel() {
         }
     }
 
+    fun saveBatchSamplings(
+        batchBlock: String,
+        batchDate: Long,
+        categoryCounts: Map<String, Int>,
+        categoryWeights: Map<String, Double>,
+        onSuccess: (String?) -> Unit
+    ) {
+        if (!availableBlocks.value.contains(batchBlock)) {
+            onSuccess("El bloque no existe en el cronograma")
+            return
+        }
+
+        val totalCount = categoryCounts.values.sum()
+        if (totalCount == 0) {
+            onSuccess("Debe registrar al menos una planta en el lote")
+            return
+        }
+
+        viewModelScope.launch {
+            categoryCounts.forEach { (category, count) ->
+                val weight = categoryWeights[category] ?: 0.0
+                for (i in 0 until count) {
+                    val sampling = SamplingEntity(
+                        block = batchBlock,
+                        date = batchDate,
+                        weight = weight,
+                        rootSystem = "Normal",
+                        fusarium = false,
+                        meristem = false,
+                        findings = "Ninguna",
+                        observations = "Muestreo por lote - Categoría: $category"
+                    )
+                    dao.insertSampling(sampling)
+                }
+            }
+            onSuccess(null)
+        }
+    }
+
     fun deleteSampling(sampling: SamplingEntity) {
         viewModelScope.launch {
             dao.deleteSampling(sampling)
