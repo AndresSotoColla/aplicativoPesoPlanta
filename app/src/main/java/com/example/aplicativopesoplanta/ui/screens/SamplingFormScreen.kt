@@ -478,41 +478,68 @@ fun BatchSamplingForm(
     }
 
     val categories = listOf("Muy Pequeño", "Pequeño", "Mediano", "Grande", "Muy Grande")
-    val categoryWeights = mapOf(
-        "Muy Pequeño" to 500.0,
-        "Pequeño" to 1000.0,
-        "Mediano" to 1500.0,
-        "Grande" to 2000.0,
-        "Muy Grande" to 2500.0
-    )
+    
+    // 15 slots for weights and categories
+    val plantWeights = remember { mutableStateListOf<String>().apply { repeat(15) { add("") } } }
+    val plantCategories = remember { mutableStateListOf<String>().apply { repeat(15) { add("") } } }
 
-    // Remember counts as string inputs to allow direct text entry
-    val categoryInputs = remember {
-        mutableStateMapOf<String, String>().apply {
-            categories.forEach { this[it] = "0" }
+    fun checkIsRowDeviated(weightStr: String, category: String): Boolean {
+        val w = weightStr.toDoubleOrNull() ?: return false
+        if (category.isEmpty()) return false
+        
+        val (expectedAvg, maxSd) = when (category) {
+            "Muy Pequeño" -> Pair(500.0, 150.0)
+            "Pequeño" -> Pair(1000.0, 200.0)
+            "Mediano" -> Pair(1500.0, 250.0)
+            "Grande" -> Pair(2000.0, 300.0)
+            "Muy Grande" -> Pair(2500.0, 400.0)
+            else -> Pair(0.0, 0.0)
         }
+        
+        return Math.abs(w - expectedAvg) > maxSd
     }
 
-    fun resetCategoryInputs() {
-        categories.forEach { categoryInputs[it] = "0" }
-    }
-
-    val totalCount by remember(categoryInputs) {
+    // Real-time Category Counts
+    val categoryCounts by remember(plantCategories, plantWeights) {
         derivedStateOf {
-            categoryInputs.values.sumOf { it.toIntOrNull() ?: 0 }
-        }
-    }
-
-    val weightedAverage by remember(categoryInputs) {
-        derivedStateOf {
-            val total = categoryInputs.values.sumOf { it.toIntOrNull() ?: 0 }
-            if (total == 0) 0.0 else {
-                val sum = categoryInputs.entries.sumOf { (category, input) ->
-                    val count = input.toIntOrNull() ?: 0
-                    val weight = categoryWeights[category] ?: 0.0
-                    count * weight
+            val counts = categories.associateWith { 0 }.toMutableMap()
+            plantCategories.indices.forEach { idx ->
+                val w = plantWeights[idx].toDoubleOrNull()
+                val cat = plantCategories[idx]
+                if (w != null && w > 0 && cat.isNotEmpty()) {
+                    counts[cat] = (counts[cat] ?: 0) + 1
                 }
-                sum / total
+            }
+            counts
+        }
+    }
+
+    // Statistics of the entered sample
+    val sampleWeights by remember(plantWeights, plantCategories) {
+        derivedStateOf {
+            plantWeights.indices.mapNotNull { idx ->
+                val w = plantWeights[idx].toDoubleOrNull()
+                val cat = plantCategories[idx]
+                if (w != null && w > 0 && cat.isNotEmpty()) w else null
+            }
+        }
+    }
+
+    val sampleCount by remember(sampleWeights) { derivedStateOf { sampleWeights.size } }
+    val sampleAverage by remember(sampleWeights) { derivedStateOf { if (sampleWeights.isEmpty()) 0.0 else sampleWeights.average() } }
+    val sampleStdDev by remember(sampleWeights, sampleAverage) {
+        derivedStateOf {
+            if (sampleWeights.size <= 1) 0.0 else {
+                val sumSquares = sampleWeights.sumOf { (it - sampleAverage) * (it - sampleAverage) }
+                Math.sqrt(sumSquares / (sampleWeights.size - 1))
+            }
+        }
+    }
+
+    val hasAnyDeviated by remember(plantWeights, plantCategories) {
+        derivedStateOf {
+            plantWeights.indices.any { idx ->
+                checkIsRowDeviated(plantWeights[idx], plantCategories[idx])
             }
         }
     }
@@ -526,7 +553,7 @@ fun BatchSamplingForm(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Block (Filterable Dropdown) with validation
+        // Block Selector
         Text("Bloque a muestrear", fontWeight = FontWeight.Bold, color = Color.Black)
         ExposedDropdownMenuBox(
             expanded = blockMenuExpanded,
@@ -617,58 +644,47 @@ fun BatchSamplingForm(
             }
         }
 
-        // Categories Card
+        // 15 Plants Slots Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             shape = RoundedCornerShape(12.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Text(
-                    text = "Conteo por Categoría",
+                    text = "Registro de 15 Plantas",
                     fontWeight = FontWeight.Bold,
                     color = Color.Black,
                     fontSize = 16.sp,
-                    modifier = Modifier.padding(bottom = 12.dp)
+                    modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
                 )
                 
-                categories.forEachIndexed { index, category ->
-                    val weight = categoryWeights[category] ?: 0.0
-                    val inputVal = categoryInputs[category] ?: "0"
-                    
-                    CategoryCounterRow(
-                        category = category,
-                        weight = weight,
-                        value = inputVal,
-                        onValueChange = { newValue ->
-                            categoryInputs[category] = newValue
-                        },
-                        onIncrement = {
-                            val current = inputVal.toIntOrNull() ?: 0
-                            categoryInputs[category] = (current + 1).toString()
-                        },
-                        onDecrement = {
-                            val current = inputVal.toIntOrNull() ?: 0
-                            if (current > 0) {
-                                categoryInputs[category] = (current - 1).toString()
-                            }
-                        }
+                for (i in 0 until 15) {
+                    val isDeviated = checkIsRowDeviated(plantWeights[i], plantCategories[i])
+                    PlantInputRow(
+                        index = i,
+                        weight = plantWeights[i],
+                        onWeightChange = { plantWeights[i] = it },
+                        category = plantCategories[i],
+                        onCategoryChange = { plantCategories[i] = it },
+                        categories = categories,
+                        isDeviated = isDeviated
                     )
-                    
-                    if (index < categories.size - 1) {
+                    if (i < 14) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .padding(vertical = 4.dp)
                                 .height(1.dp)
-                                .background(Color.LightGray.copy(alpha = 0.5f))
+                                .background(Color.LightGray.copy(alpha = 0.3f))
                         )
                     }
                 }
             }
         }
 
-        // Progress toward 15 plants
+        // Meta Progress Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -688,69 +704,155 @@ fun BatchSamplingForm(
                         fontSize = 14.sp
                     )
                     Text(
-                        text = "$totalCount / 15",
+                        text = "$sampleCount / 15",
                         fontWeight = FontWeight.Bold,
-                        color = if (totalCount >= 15) Color(0xFF2E7D32) else Color.Black,
+                        color = if (sampleCount >= 15) Color(0xFF2E7D32) else Color.Black,
                         fontSize = 14.sp
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
-                    progress = (totalCount / 15f).coerceAtMost(1f),
+                    progress = (sampleCount / 15f).coerceAtMost(1f),
                     modifier = Modifier.fillMaxWidth().height(8.dp),
-                    color = if (totalCount >= 15) Color(0xFF2E7D32) else Color.Black,
+                    color = if (sampleCount >= 15) Color(0xFF2E7D32) else Color.Black,
                     trackColor = Color.LightGray.copy(alpha = 0.3f)
                 )
             }
         }
 
-        // Stats Cards Row
+        // Live stats cards
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Card(
-                modifier = Modifier.weight(1.5f),
+                modifier = Modifier.weight(1f),
                 colors = CardDefaults.cardColors(containerColor = DarkBeige),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(8.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(12.dp),
                     horizontalAlignment = Alignment.Start
                 ) {
                     Text(
-                        "Total Plantas",
-                        style = MaterialTheme.typography.labelMedium,
+                        "Total",
+                        style = MaterialTheme.typography.labelSmall,
                         color = Color.Black.copy(alpha = 0.7f)
                     )
                     Text(
-                        "$totalCount",
-                        style = MaterialTheme.typography.titleLarge,
+                        "$sampleCount",
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
                 }
             }
             Card(
-                modifier = Modifier.weight(2f),
+                modifier = Modifier.weight(1.5f),
                 colors = CardDefaults.cardColors(containerColor = DarkBeige),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(8.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(12.dp),
                     horizontalAlignment = Alignment.Start
                 ) {
                     Text(
-                        "Media Ponderada",
-                        style = MaterialTheme.typography.labelMedium,
+                        "Promedio",
+                        style = MaterialTheme.typography.labelSmall,
                         color = Color.Black.copy(alpha = 0.7f)
                     )
                     Text(
-                        "${String.format(Locale.getDefault(), "%.1f", weightedAverage)} g",
-                        style = MaterialTheme.typography.titleLarge,
+                        "${String.format(Locale.getDefault(), "%.1f", sampleAverage)} g",
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
+                }
+            }
+            Card(
+                modifier = Modifier.weight(1.5f),
+                colors = CardDefaults.cardColors(containerColor = DarkBeige),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        "Desviación",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Black.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        "${String.format(Locale.getDefault(), "%.1f", sampleStdDev)} g",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                }
+            }
+        }
+
+        // Deviation Alert Box
+        if (hasAnyDeviated) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF5350))
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("⚠️", fontSize = 16.sp)
+                    Text(
+                        text = "¡Alerta! Hay plantas con pesos muy desviados para su categoría.",
+                        color = Color(0xFFC62828),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        // Category Count Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Conteo por Categoría",
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                
+                categories.forEachIndexed { index, cat ->
+                    val count = categoryCounts[cat] ?: 0
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(cat, fontSize = 14.sp, color = Color.Black)
+                        Text("$count", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
+                    }
+                    if (index < categories.size - 1) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(Color.LightGray.copy(alpha = 0.3f))
+                        )
+                    }
                 }
             }
         }
@@ -772,8 +874,8 @@ fun BatchSamplingForm(
                 )
                 
                 categories.forEach { category ->
-                    val count = categoryInputs[category]?.toIntOrNull() ?: 0
-                    val pct = if (totalCount == 0) 0f else count.toFloat() / totalCount
+                    val count = categoryCounts[category] ?: 0
+                    val pct = if (sampleCount == 0) 0f else count.toFloat() / sampleCount
                     
                     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                         Row(
@@ -809,19 +911,24 @@ fun BatchSamplingForm(
         // Save Batch Button
         Button(
             onClick = {
-                val finalCounts = categoryInputs.mapValues { it.value.toIntOrNull() ?: 0 }
-                viewModel.saveBatchSamplings(
+                val weights = plantWeights.map { it.toDoubleOrNull() }
+                val finalCategories = plantCategories.toList()
+                viewModel.saveBatchSamplingsList(
                     batchBlock = viewModel.block,
                     batchDate = viewModel.samplingDate,
-                    categoryCounts = finalCounts,
-                    categoryWeights = categoryWeights,
+                    plantWeights = weights,
+                    plantCategories = finalCategories,
                     onSuccess = { errorMsg ->
                         scope.launch {
                             if (errorMsg != null) {
                                 snackbarHostState.showSnackbar(errorMsg)
                             } else {
-                                snackbarHostState.showSnackbar("Lote guardado correctamente")
-                                resetCategoryInputs()
+                                snackbarHostState.showSnackbar("Lote de $sampleCount plantas guardado correctamente")
+                                // Clear the lists
+                                plantWeights.indices.forEach { idx ->
+                                    plantWeights[idx] = ""
+                                    plantCategories[idx] = ""
+                                }
                             }
                         }
                     }
@@ -830,7 +937,7 @@ fun BatchSamplingForm(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
-            enabled = isBlockValid && viewModel.block.isNotEmpty() && totalCount > 0,
+            enabled = isBlockValid && viewModel.block.isNotEmpty() && sampleCount > 0,
             shape = MaterialTheme.shapes.medium,
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color.Black,
@@ -844,83 +951,117 @@ fun BatchSamplingForm(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CategoryCounterRow(
+fun PlantInputRow(
+    index: Int,
+    weight: String,
+    onWeightChange: (String) -> Unit,
     category: String,
-    weight: Double,
-    value: String,
-    onValueChange: (String) -> Unit,
-    onIncrement: () -> Unit,
-    onDecrement: () -> Unit
+    onCategoryChange: (String) -> Unit,
+    categories: List<String>,
+    isDeviated: Boolean
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = category,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,
-                fontSize = 15.sp
+        // Label (e.g. "01")
+        Text(
+            text = String.format(Locale.getDefault(), "%02d", index + 1),
+            fontWeight = FontWeight.Bold,
+            color = Color.Black,
+            fontSize = 14.sp,
+            modifier = Modifier.width(24.dp)
+        )
+
+        // Weight Input Field
+        OutlinedTextField(
+            value = weight,
+            onValueChange = { newValue ->
+                if (newValue.isEmpty() || newValue.all { it.isDigit() || it == '.' }) {
+                    onWeightChange(newValue)
+                }
+            },
+            label = { Text("Peso (g)", fontSize = 11.sp, color = Color.Gray) },
+            textStyle = TextStyle(color = Color.Black, fontSize = 14.sp),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1.2f).height(52.dp),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color.Black,
+                unfocusedBorderColor = Color.LightGray
             )
-            Text(
-                text = "${weight.toInt()} g",
-                color = Color.Gray,
-                fontSize = 13.sp
-            )
-        }
-        
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        )
+
+        // Category Selector Box
+        Box(
+            modifier = Modifier
+                .weight(1.5f)
+                .height(52.dp)
         ) {
-            IconButton(
-                onClick = onDecrement,
-                enabled = (value.toIntOrNull() ?: 0) > 0,
-                modifier = Modifier
-                    .size(36.dp)
-                    .background(
-                        color = if ((value.toIntOrNull() ?: 0) > 0) DarkBeige else Color.LightGray.copy(alpha = 0.3f),
-                        shape = RoundedCornerShape(8.dp)
-                    )
-            ) {
-                Text("-", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            }
-            
-            OutlinedTextField(
-                value = value,
-                onValueChange = { newValue ->
-                    if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
-                        onValueChange(newValue)
-                    }
-                },
-                textStyle = TextStyle(
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    color = Color.Black,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.width(70.dp),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color.Black,
-                    unfocusedBorderColor = Color.Gray,
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent
+            OutlinedButton(
+                onClick = { menuExpanded = true },
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(4.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Black),
+                contentPadding = PaddingValues(horizontal = 8.dp),
+                border = ButtonDefaults.outlinedButtonBorder.copy(
+                    brush = androidx.compose.ui.graphics.SolidColor(Color.LightGray)
                 )
-            )
-            
-            IconButton(
-                onClick = onIncrement,
-                modifier = Modifier
-                    .size(36.dp)
-                    .background(color = DarkBeige, shape = RoundedCornerShape(8.dp))
             ) {
-                Text("+", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = category.ifEmpty { "Categoría" },
+                        fontSize = 12.sp,
+                        color = if (category.isEmpty()) Color.Gray else Color.Black
+                    )
+                    Text("▼", fontSize = 8.sp, color = Color.Gray)
+                }
+            }
+
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false },
+                modifier = Modifier.background(Color.White)
+            ) {
+                categories.forEach { catOption ->
+                    DropdownMenuItem(
+                        text = { Text(catOption, color = Color.Black, fontSize = 13.sp) },
+                        onClick = {
+                            onCategoryChange(catOption)
+                            menuExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        // Deviation Alert Column
+        Box(
+            modifier = Modifier.width(85.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            if (isDeviated) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text("⚠️", fontSize = 12.sp)
+                    Text(
+                        text = "Muy desviado",
+                        color = Color.Red,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }

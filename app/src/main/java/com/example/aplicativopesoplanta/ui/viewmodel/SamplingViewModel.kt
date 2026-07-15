@@ -224,11 +224,11 @@ class SamplingViewModel(context: Context) : ViewModel() {
         }
     }
 
-    fun saveBatchSamplings(
+    fun saveBatchSamplingsList(
         batchBlock: String,
         batchDate: Long,
-        categoryCounts: Map<String, Int>,
-        categoryWeights: Map<String, Double>,
+        plantWeights: List<Double?>,
+        plantCategories: List<String?>,
         onSuccess: (String?) -> Unit
     ) {
         if (!availableBlocks.value.contains(batchBlock)) {
@@ -236,28 +236,31 @@ class SamplingViewModel(context: Context) : ViewModel() {
             return
         }
 
-        val totalCount = categoryCounts.values.sum()
-        if (totalCount == 0) {
-            onSuccess("Debe registrar al menos una planta en el lote")
+        val validIndices = plantWeights.indices.filter { idx ->
+            val w = plantWeights[idx]
+            w != null && w > 0 && w <= 4000 && !plantCategories[idx].isNullOrEmpty()
+        }
+
+        if (validIndices.isEmpty()) {
+            onSuccess("Debe ingresar al menos una planta válida con su peso y categoría")
             return
         }
 
         viewModelScope.launch {
-            categoryCounts.forEach { (category, count) ->
-                val weight = categoryWeights[category] ?: 0.0
-                for (i in 0 until count) {
-                    val sampling = SamplingEntity(
-                        block = batchBlock,
-                        date = batchDate,
-                        weight = weight,
-                        rootSystem = "Normal",
-                        fusarium = false,
-                        meristem = false,
-                        findings = "Ninguna",
-                        observations = "Muestreo por lote - Categoría: $category"
-                    )
-                    dao.insertSampling(sampling)
-                }
+            validIndices.forEach { idx ->
+                val weight = plantWeights[idx]!!
+                val category = plantCategories[idx]!!
+                val sampling = SamplingEntity(
+                    block = batchBlock,
+                    date = batchDate,
+                    weight = weight,
+                    rootSystem = "Normal",
+                    fusarium = false,
+                    meristem = false,
+                    findings = "Ninguna",
+                    observations = "Muestreo por lote - Categoría: $category"
+                )
+                dao.insertSampling(sampling)
             }
             onSuccess(null)
         }
